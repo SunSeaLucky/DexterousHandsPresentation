@@ -1,3 +1,9 @@
 .scrapy
 AGENTS.md
 CLAUDE.md
+node_modules
+__pycache__/
+.venv/
+var/files/
+trace-viewer/node_modules/
+trace-viewer/dist/

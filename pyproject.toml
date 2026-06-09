@@ -1,0 +1,6 @@
+[project]
+name = "dexterous-presentation"
+version = "0.1.0"
+description = "Executable presentation scaffold for a dexterous-hand sharing."
+readme = "README.md"
+requires-python = ">=3.11"

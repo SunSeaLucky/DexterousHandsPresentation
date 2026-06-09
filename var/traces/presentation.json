@@ -1,0 +1,1131 @@
+{
+  "files": {
+    "presentation.py": "from execute_util import link, text\nfrom sections import algorithms, companies, hardware\n\n\ndef main():\n    intro()\n    hardware.present()\n    companies.present()\n    algorithms.present()\n    closing()\n\n\ndef intro():\n    text(\"# 灵巧手展示分享\")\n    text(\"目标：先搭起一个能持续扩展的展示框架，再逐步补内容、资料和图。\")\n\n    sections = [\"硬件\", \"公司\", \"算法\"]  # @inspect sections\n    text(\"框架分成三部分：**硬件**、**公司**、**算法**。\")\n    text(\"展示形式参考 executable lecture：内容是 Python 程序，运行后生成可交互 trace。\")\n    text(\"内部跳转示例：\"), link(hardware.present)\n\n\ndef closing():\n    text(\"## 后续填充顺序\")\n    text(\"1. 先补每部分的问题清单和代表案例。\")\n    text(\"2. 再补图片、论文、公司产品页和数据表。\")\n    text(\"3. 最后收敛成适合分享的叙事顺序。\")\n\n\nif __name__ == \"__main__\":\n    main()\n",
+    "sections/__init__.py": "\"\"\"Presentation sections for the dexterous-hand sharing.\"\"\"\n",
+    "sections/algorithms.py": "from execute_util import text\n\n\ndef present():\n    text(\"## 算法\")\n    text(\"算法部分先按从感知到控制的链路组织：状态估计、策略学习、仿真到现实。\")\n\n    pipeline = [\"perception\", \"policy\", \"sim2real\"]  # @inspect pipeline\n    text(\"- 感知与状态估计：手部姿态、物体状态、接触状态。\")\n    text(\"- 策略学习：模仿学习、强化学习、扩散策略、视觉语言动作模型。\")\n    text(\"- Sim2Real：域随机化、系统辨识、残差控制、数据闭环。\")\n\n    text(\"这一部分后续可以补：经典论文脉络、训练数据、benchmark 与失败案例。\")\n",
+    "sections/companies.py": "from execute_util import text\n\n\ndef present():\n    text(\"## 公司\")\n    text(\"公司部分先按产品定位拆开：机器人本体公司、灵巧手供应商、平台/研究机构。\")\n\n    company_groups = [\"机器人本体\", \"灵巧手供应商\", \"平台与研究机构\"]  # @inspect company_groups\n    text(\"- 机器人本体：关注整机任务、量产能力、应用场景。\")\n    text(\"- 灵巧手供应商：关注手部硬件指标、控制接口、生态兼容。\")\n    text(\"- 平台/研究机构：关注开源数据、仿真环境、基准任务。\")\n\n    text(\"这一部分后续可以补：公司清单、核心产品、融资/客户/技术路线。\")\n",
+    "sections/hardware.py": "from execute_util import text\n\n\ndef present():\n    text(\"## 硬件\")\n    text(\"灵巧手的硬件部分先建立三个观察维度：结构、驱动、传感。\")\n\n    degrees_of_freedom = 20  # @inspect degrees_of_freedom\n    text(\"- 结构：自由度、手指布局、掌部机构、腕手连接。\")\n    text(\"- 驱动：电机、腱绳、齿轮、液压/气动，以及力控能力。\")\n    text(\"- 传感：触觉、关节编码器、力/扭矩、视觉与本体感知。\")\n\n    text(\"这一部分后续可以补：代表性硬件对比表、拆解图、成本/可靠性分析。\")\n"
+  },
+  "steps": [
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 5,
+          "function_name": "main",
+          "code": "def main():"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 6,
+          "function_name": "main",
+          "code": "intro()"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 6,
+          "function_name": "main",
+          "code": "intro()"
+        },
+        {
+          "path": "presentation.py",
+          "line_number": 13,
+          "function_name": "intro",
+          "code": "def intro():"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 6,
+          "function_name": "main",
+          "code": "intro()"
+        },
+        {
+          "path": "presentation.py",
+          "line_number": 14,
+          "function_name": "intro",
+          "code": "text(\"# 灵巧手展示分享\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "# 灵巧手展示分享",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 6,
+          "function_name": "main",
+          "code": "intro()"
+        },
+        {
+          "path": "presentation.py",
+          "line_number": 15,
+          "function_name": "intro",
+          "code": "text(\"目标：先搭起一个能持续扩展的展示框架，再逐步补内容、资料和图。\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "目标：先搭起一个能持续扩展的展示框架，再逐步补内容、资料和图。",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 6,
+          "function_name": "main",
+          "code": "intro()"
+        },
+        {
+          "path": "presentation.py",
+          "line_number": 17,
+          "function_name": "intro",
+          "code": "sections = [\"硬件\", \"公司\", \"算法\"]  # @inspect sections"
+        }
+      ],
+      "env": {
+        "sections": [
+          "硬件",
+          "公司",
+          "算法"
+        ]
+      },
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 6,
+          "function_name": "main",
+          "code": "intro()"
+        },
+        {
+          "path": "presentation.py",
+          "line_number": 18,
+          "function_name": "intro",
+          "code": "text(\"框架分成三部分：**硬件**、**公司**、**算法**。\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "框架分成三部分：**硬件**、**公司**、**算法**。",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 6,
+          "function_name": "main",
+          "code": "intro()"
+        },
+        {
+          "path": "presentation.py",
+          "line_number": 19,
+          "function_name": "intro",
+          "code": "text(\"展示形式参考 executable lecture：内容是 Python 程序，运行后生成可交互 trace。\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "展示形式参考 executable lecture：内容是 Python 程序，运行后生成可交互 trace。",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 6,
+          "function_name": "main",
+          "code": "intro()"
+        },
+        {
+          "path": "presentation.py",
+          "line_number": 20,
+          "function_name": "intro",
+          "code": "text(\"内部跳转示例：\"), link(hardware.present)"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "内部跳转示例：",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        },
+        {
+          "type": "link",
+          "data": "present",
+          "style": {},
+          "external_link": null,
+          "internal_link": {
+            "path": "sections/hardware.py",
+            "line_number": 4
+          }
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 6,
+          "function_name": "main",
+          "code": "intro()"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 7,
+          "function_name": "main",
+          "code": "hardware.present()"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 7,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 4,
+          "function_name": "present",
+          "code": "def present():"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 7,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 5,
+          "function_name": "present",
+          "code": "text(\"## 硬件\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "## 硬件",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 7,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "text(\"灵巧手的硬件部分先建立三个观察维度：结构、驱动、传感。\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "灵巧手的硬件部分先建立三个观察维度：结构、驱动、传感。",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 7,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 8,
+          "function_name": "present",
+          "code": "degrees_of_freedom = 20  # @inspect degrees_of_freedom"
+        }
+      ],
+      "env": {
+        "degrees_of_freedom": 20
+      },
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 7,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 9,
+          "function_name": "present",
+          "code": "text(\"- 结构：自由度、手指布局、掌部机构、腕手连接。\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "- 结构：自由度、手指布局、掌部机构、腕手连接。",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 7,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 10,
+          "function_name": "present",
+          "code": "text(\"- 驱动：电机、腱绳、齿轮、液压/气动，以及力控能力。\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "- 驱动：电机、腱绳、齿轮、液压/气动，以及力控能力。",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 7,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 11,
+          "function_name": "present",
+          "code": "text(\"- 传感：触觉、关节编码器、力/扭矩、视觉与本体感知。\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "- 传感：触觉、关节编码器、力/扭矩、视觉与本体感知。",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 7,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 13,
+          "function_name": "present",
+          "code": "text(\"这一部分后续可以补：代表性硬件对比表、拆解图、成本/可靠性分析。\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "这一部分后续可以补：代表性硬件对比表、拆解图、成本/可靠性分析。",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 7,
+          "function_name": "main",
+          "code": "hardware.present()"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "companies.present()"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "companies.present()"
+        },
+        {
+          "path": "sections/companies.py",
+          "line_number": 4,
+          "function_name": "present",
+          "code": "def present():"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "companies.present()"
+        },
+        {
+          "path": "sections/companies.py",
+          "line_number": 5,
+          "function_name": "present",
+          "code": "text(\"## 公司\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "## 公司",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "companies.present()"
+        },
+        {
+          "path": "sections/companies.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "text(\"公司部分先按产品定位拆开：机器人本体公司、灵巧手供应商、平台/研究机构。\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "公司部分先按产品定位拆开：机器人本体公司、灵巧手供应商、平台/研究机构。",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "companies.present()"
+        },
+        {
+          "path": "sections/companies.py",
+          "line_number": 8,
+          "function_name": "present",
+          "code": "company_groups = [\"机器人本体\", \"灵巧手供应商\", \"平台与研究机构\"]  # @inspect company_groups"
+        }
+      ],
+      "env": {
+        "company_groups": [
+          "机器人本体",
+          "灵巧手供应商",
+          "平台与研究机构"
+        ]
+      },
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "companies.present()"
+        },
+        {
+          "path": "sections/companies.py",
+          "line_number": 9,
+          "function_name": "present",
+          "code": "text(\"- 机器人本体：关注整机任务、量产能力、应用场景。\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "- 机器人本体：关注整机任务、量产能力、应用场景。",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "companies.present()"
+        },
+        {
+          "path": "sections/companies.py",
+          "line_number": 10,
+          "function_name": "present",
+          "code": "text(\"- 灵巧手供应商：关注手部硬件指标、控制接口、生态兼容。\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "- 灵巧手供应商：关注手部硬件指标、控制接口、生态兼容。",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "companies.present()"
+        },
+        {
+          "path": "sections/companies.py",
+          "line_number": 11,
+          "function_name": "present",
+          "code": "text(\"- 平台/研究机构：关注开源数据、仿真环境、基准任务。\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "- 平台/研究机构：关注开源数据、仿真环境、基准任务。",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "companies.present()"
+        },
+        {
+          "path": "sections/companies.py",
+          "line_number": 13,
+          "function_name": "present",
+          "code": "text(\"这一部分后续可以补：公司清单、核心产品、融资/客户/技术路线。\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "这一部分后续可以补：公司清单、核心产品、融资/客户/技术路线。",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "companies.present()"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 4,
+          "function_name": "present",
+          "code": "def present():"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 5,
+          "function_name": "present",
+          "code": "text(\"## 算法\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "## 算法",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "text(\"算法部分先按从感知到控制的链路组织：状态估计、策略学习、仿真到现实。\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "算法部分先按从感知到控制的链路组织：状态估计、策略学习、仿真到现实。",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 8,
+          "function_name": "present",
+          "code": "pipeline = [\"perception\", \"policy\", \"sim2real\"]  # @inspect pipeline"
+        }
+      ],
+      "env": {
+        "pipeline": [
+          "perception",
+          "policy",
+          "sim2real"
+        ]
+      },
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 9,
+          "function_name": "present",
+          "code": "text(\"- 感知与状态估计：手部姿态、物体状态、接触状态。\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "- 感知与状态估计：手部姿态、物体状态、接触状态。",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 10,
+          "function_name": "present",
+          "code": "text(\"- 策略学习：模仿学习、强化学习、扩散策略、视觉语言动作模型。\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "- 策略学习：模仿学习、强化学习、扩散策略、视觉语言动作模型。",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 11,
+          "function_name": "present",
+          "code": "text(\"- Sim2Real：域随机化、系统辨识、残差控制、数据闭环。\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "- Sim2Real：域随机化、系统辨识、残差控制、数据闭环。",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 13,
+          "function_name": "present",
+          "code": "text(\"这一部分后续可以补：经典论文脉络、训练数据、benchmark 与失败案例。\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "这一部分后续可以补：经典论文脉络、训练数据、benchmark 与失败案例。",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 10,
+          "function_name": "main",
+          "code": "closing()"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 10,
+          "function_name": "main",
+          "code": "closing()"
+        },
+        {
+          "path": "presentation.py",
+          "line_number": 23,
+          "function_name": "closing",
+          "code": "def closing():"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 10,
+          "function_name": "main",
+          "code": "closing()"
+        },
+        {
+          "path": "presentation.py",
+          "line_number": 24,
+          "function_name": "closing",
+          "code": "text(\"## 后续填充顺序\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "## 后续填充顺序",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 10,
+          "function_name": "main",
+          "code": "closing()"
+        },
+        {
+          "path": "presentation.py",
+          "line_number": 25,
+          "function_name": "closing",
+          "code": "text(\"1. 先补每部分的问题清单和代表案例。\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "1. 先补每部分的问题清单和代表案例。",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 10,
+          "function_name": "main",
+          "code": "closing()"
+        },
+        {
+          "path": "presentation.py",
+          "line_number": 26,
+          "function_name": "closing",
+          "code": "text(\"2. 再补图片、论文、公司产品页和数据表。\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "2. 再补图片、论文、公司产品页和数据表。",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 10,
+          "function_name": "main",
+          "code": "closing()"
+        },
+        {
+          "path": "presentation.py",
+          "line_number": 27,
+          "function_name": "closing",
+          "code": "text(\"3. 最后收敛成适合分享的叙事顺序。\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "3. 最后收敛成适合分享的叙事顺序。",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 10,
+          "function_name": "main",
+          "code": "closing()"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    }
+  ]
+}
