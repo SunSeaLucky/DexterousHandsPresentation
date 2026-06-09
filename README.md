@@ -14,7 +14,7 @@ The main entry point is `presentation.py`, split into three section modules:
 Generate the starter trace:
 
 ```sh
-python execute.py -m presentation
+uv run python execute.py -m presentation
 ```
 
 View it locally:
