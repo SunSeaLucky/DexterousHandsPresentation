@@ -1,7 +1,9 @@
 import inspect
 import os
 import subprocess
+import csv
 from dataclasses import dataclass
+from typing import Any
 
 from file_util import relativize
 from reference import Reference
@@ -16,7 +18,7 @@ class CodeLocation:
 @dataclass(frozen=True)
 class Rendering:
     type: str
-    data: str | None = None
+    data: Any = None
     style: dict | None = None
     external_link: Reference | None = None
     internal_link: CodeLocation | None = None
@@ -48,6 +50,20 @@ def image(url: str, style: dict | None = None, width: int | str | None = None):
         raise ValueError(f"Image not found: {url}")
 
     _current_renderings.append(Rendering(type="image", data=url, style=style))
+
+
+def table(path: str, style: dict | None = None):
+    style = style or {}
+    if not os.path.exists(path):
+        raise ValueError(f"Table not found: {path}")
+
+    with open(path, newline="", encoding="utf-8-sig") as handle:
+        rows = [row for row in csv.reader(handle)]
+
+    if not rows:
+        raise ValueError(f"Table is empty: {path}")
+
+    _current_renderings.append(Rendering(type="table", data=rows, style=style))
 
 
 def link(arg: type | Reference | str | None = None, style: dict | None = None, **kwargs):

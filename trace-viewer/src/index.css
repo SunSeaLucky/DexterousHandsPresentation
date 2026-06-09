@@ -168,6 +168,31 @@ button {
   width: 800px;
 }
 
+.three-line-table {
+  display: inline-table;
+  border-collapse: collapse;
+  width: 100%;
+  margin: 4px 0;
+  border-top: 2px solid #213547;
+  border-bottom: 2px solid #213547;
+  font-size: 0.95em;
+}
+
+.three-line-table th,
+.three-line-table td {
+  padding: 6px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.three-line-table thead tr {
+  border-bottom: 1px solid #213547;
+}
+
+.three-line-table th {
+  font-weight: 600;
+}
+
 .env-panel {
   position: fixed;
   overflow-y: auto;

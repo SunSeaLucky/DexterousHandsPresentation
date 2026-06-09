@@ -701,6 +701,8 @@ function renderRendering(rendering, navigate) {
     return <MarkdownRenderer content={rendering.data.toString()} style={rendering.style} />;
   } else if (rendering.type === "image") {
     return <img src={rendering.data} style={rendering.style} />;
+  } else if (rendering.type === "table") {
+    return <TableRenderer rows={rendering.data} style={rendering.style} />;
   } else if (rendering.type === "link") {
     if (rendering.internal_link) {
       // Create a link to a particular path, line number
@@ -719,6 +721,30 @@ function renderRendering(rendering, navigate) {
   } else {
     return <span style={rendering.style}>{rendering.data}</span>;
   }
+}
+
+function TableRenderer({ rows, style }) {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return null;
+  }
+
+  const [header, ...body] = rows;
+  return (
+    <table className="three-line-table" style={style}>
+      <thead>
+        <tr>
+          {header.map((cell, index) => <th key={index}>{cell}</th>)}
+        </tr>
+      </thead>
+      <tbody>
+        {body.map((row, rowIndex) => (
+          <tr key={rowIndex}>
+            {row.map((cell, cellIndex) => <td key={cellIndex}>{cell}</td>)}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
 }
 
 function updateUrlParams(params, navigate) {
