@@ -4,20 +4,23 @@ from sections import algorithms, companies, hardware
 
 def main():
     intro()
-    hardware.present()
     companies.present()
+    hardware.present()
     algorithms.present()
     closing()
 
 
 def intro():
-    text("# 灵巧手展示分享")
-    text("目标：先搭起一个能持续扩展的展示框架，再逐步补内容、资料和图。")
+    text("# 自我介绍")
+    text("- 孙海洋")
+    text("- 本科毕业（今年 6 月）于新疆大学，硕士就读于浙江大学")
+    text("- 2025.10~2026.6 具身智能研究")
+    text("# 分享内容概览")
 
-    sections = ["硬件", "公司", "算法"]  # @inspect sections
-    text("框架分成三部分：**硬件**、**公司**、**算法**。")
-    text("展示形式参考 executable lecture：内容是 Python 程序，运行后生成可交互 trace。")
-    text("内部跳转示例："), link(hardware.present)
+    # sections = ["硬件", "公司", "算法"]  # @inspect sections
+    text("- 公司、硬件、算法")
+    # text("展示形式参考 executable lecture：内容是 Python 程序，运行后生成可交互 trace。")
+    # link(hardware.present)
 
 
 def closing():
