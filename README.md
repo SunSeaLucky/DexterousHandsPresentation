@@ -26,3 +26,7 @@ Then open the URL printed by Vite, for example:
 ```text
 http://localhost:5173/?trace=/var/traces/presentation.json
 ```
+
+## Note
+
+This project is forked from https://github.com/stanford-cs336/spring2025-lectures
