@@ -1,5 +1,9 @@
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  --presentation-font-family: Palatino, "Palatino Linotype", "Book Antiqua",
+    "Songti SC", STSong, SimSun, "Noto Serif CJK SC", "Source Han Serif SC",
+    serif;
+
+  font-family: var(--presentation-font-family);
   line-height: 1.5;
   color: #213547;
   background-color: #ffffff;

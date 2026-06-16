@@ -1,10 +1,12 @@
 {
   "files": {
-    "presentation.py": "from execute_util import link, text\nfrom sections import algorithms, companies, hardware\n\n\ndef main():\n    intro()\n    hardware.present()\n    companies.present()\n    algorithms.present()\n    closing()\n\n\ndef intro():\n    text(\"# 灵巧手展示分享\")\n    text(\"目标：先搭起一个能持续扩展的展示框架，再逐步补内容、资料和图。\")\n\n    sections = [\"硬件\", \"公司\", \"算法\"]  # @inspect sections\n    text(\"框架分成三部分：**硬件**、**公司**、**算法**。\")\n    text(\"展示形式参考 executable lecture：内容是 Python 程序，运行后生成可交互 trace。\")\n    text(\"内部跳转示例：\"), link(hardware.present)\n\n\ndef closing():\n    text(\"## 后续填充顺序\")\n    text(\"1. 先补每部分的问题清单和代表案例。\")\n    text(\"2. 再补图片、论文、公司产品页和数据表。\")\n    text(\"3. 最后收敛成适合分享的叙事顺序。\")\n\n\nif __name__ == \"__main__\":\n    main()\n",
+    ".venv/bin/activate_this.py": "# Copyright (c) 2020-202x The virtualenv developers\n#\n# Permission is hereby granted, free of charge, to any person obtaining\n# a copy of this software and associated documentation files (the\n# \"Software\"), to deal in the Software without restriction, including\n# without limitation the rights to use, copy, modify, merge, publish,\n# distribute, sublicense, and/or sell copies of the Software, and to\n# permit persons to whom the Software is furnished to do so, subject to\n# the following conditions:\n#\n# The above copyright notice and this permission notice shall be\n# included in all copies or substantial portions of the Software.\n#\n# THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND,\n# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF\n# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND\n# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE\n# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION\n# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION\n# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.\n\n\"\"\"\nActivate virtualenv for current interpreter:\n\nimport runpy\nrunpy.run_path(this_file)\n\nThis can be used when you must use an existing Python interpreter, not the virtualenv bin/python.\n\"\"\"  # noqa: D415\n\nfrom __future__ import annotations\n\nimport os\nimport site\nimport sys\n\ntry:\n    abs_file = os.path.abspath(__file__)\nexcept NameError as exc:\n    msg = \"You must use import runpy; runpy.run_path(this_file)\"\n    raise AssertionError(msg) from exc\n\nbin_dir = os.path.dirname(abs_file)\nbase = bin_dir[: -len(\"bin\") - 1]  # strip away the bin part from the __file__, plus the path separator\n\n# prepend bin to PATH (this file is inside the bin directory)\nos.environ[\"PATH\"] = os.pathsep.join([bin_dir, *os.environ.get(\"PATH\", \"\").split(os.pathsep)])\nos.environ[\"VIRTUAL_ENV\"] = base  # virtual env is right above bin directory\nos.environ[\"VIRTUAL_ENV_PROMPT\"] = \"dexterous-presentation\" or os.path.basename(base)  # noqa: SIM222\n\n# add the virtual environments libraries to the host python import mechanism\nprev_length = len(sys.path)\nfor lib in \"../lib/python3.13/site-packages\".split(os.pathsep):\n    path = os.path.realpath(os.path.join(bin_dir, lib))\n    site.addsitedir(path)\nsys.path[:] = sys.path[prev_length:] + sys.path[0:prev_length]\n\nsys.real_prefix = sys.prefix\nsys.prefix = base\n",
+    ".venv/lib/python3.13/site-packages/_virtualenv.py": "\"\"\"Patches that are applied at runtime to the virtual environment.\"\"\"\n\nimport os\nimport sys\n\nVIRTUALENV_PATCH_FILE = os.path.join(__file__)\n\n\ndef patch_dist(dist):\n    \"\"\"\n    Distutils allows user to configure some arguments via a configuration file:\n    https://docs.python.org/3.11/install/index.html#distutils-configuration-files.\n\n    Some of this arguments though don't make sense in context of the virtual environment files, let's fix them up.\n    \"\"\"  # noqa: D205\n    # we cannot allow some install config as that would get packages installed outside of the virtual environment\n    old_parse_config_files = dist.Distribution.parse_config_files\n\n    def parse_config_files(self, *args, **kwargs):\n        result = old_parse_config_files(self, *args, **kwargs)\n        install = self.get_option_dict(\"install\")\n\n        if \"prefix\" in install:  # the prefix governs where to install the libraries\n            install[\"prefix\"] = VIRTUALENV_PATCH_FILE, os.path.abspath(sys.prefix)\n        for base in (\"purelib\", \"platlib\", \"headers\", \"scripts\", \"data\"):\n            key = f\"install_{base}\"\n            if key in install:  # do not allow global configs to hijack venv paths\n                install.pop(key, None)\n        return result\n\n    dist.Distribution.parse_config_files = parse_config_files\n\n\n# Import hook that patches some modules to ignore configuration values that break package installation in case\n# of virtual environments.\n_DISTUTILS_PATCH = \"distutils.dist\", \"setuptools.dist\"\n# https://docs.python.org/3/library/importlib.html#setting-up-an-importer\n\n\nclass _Finder:\n    \"\"\"A meta path finder that allows patching the imported distutils modules.\"\"\"\n\n    fullname = None\n\n    # lock[0] is threading.Lock(), but initialized lazily to avoid importing threading very early at startup,\n    # because there are gevent-based applications that need to be first to import threading by themselves.\n    # See https://github.com/pypa/virtualenv/issues/1895 for details.\n    lock = []  # noqa: RUF012\n\n    def find_spec(self, fullname, path, target=None):  # noqa: ARG002\n        if fullname in _DISTUTILS_PATCH and self.fullname is None:\n            # initialize lock[0] lazily\n            if len(self.lock) == 0:\n                import threading\n\n                lock = threading.Lock()\n                # there is possibility that two threads T1 and T2 are simultaneously running into find_spec,\n                # observing .lock as empty, and further going into hereby initialization. However due to the GIL,\n                # list.append() operation is atomic and this way only one of the threads will \"win\" to put the lock\n                # - that every thread will use - into .lock[0].\n                # https://docs.python.org/3/faq/library.html#what-kinds-of-global-value-mutation-are-thread-safe\n                self.lock.append(lock)\n\n            from functools import partial\n            from importlib.util import find_spec\n\n            with self.lock[0]:\n                self.fullname = fullname\n                try:\n                    spec = find_spec(fullname, path)\n                    if spec is not None:\n                        # https://www.python.org/dev/peps/pep-0451/#how-loading-will-work\n                        is_new_api = hasattr(spec.loader, \"exec_module\")\n                        func_name = \"exec_module\" if is_new_api else \"load_module\"\n                        old = getattr(spec.loader, func_name)\n                        func = self.exec_module if is_new_api else self.load_module\n                        if old is not func:\n                            try:  # noqa: SIM105\n                                setattr(spec.loader, func_name, partial(func, old))\n                            except AttributeError:\n                                pass  # C-Extension loaders are r/o such as zipimporter with <3.7\n                        return spec\n                finally:\n                    self.fullname = None\n        return None\n\n    @staticmethod\n    def exec_module(old, module):\n        old(module)\n        if module.__name__ in _DISTUTILS_PATCH:\n            patch_dist(module)\n\n    @staticmethod\n    def load_module(old, name):\n        module = old(name)\n        if module.__name__ in _DISTUTILS_PATCH:\n            patch_dist(module)\n        return module\n\n\nsys.meta_path.insert(0, _Finder())\n",
+    "presentation.py": "from execute_util import link, text, image\nfrom sections import algorithms, companies, hardware\n\n\ndef main():\n    intro()\n    companies.present()\n    hardware.present()\n    algorithms.present()\n    closing()\n\n\ndef intro():\n    text(\"## 自我介绍\")\n    text(\"- 孙海洋\")\n    text(\"- 河南驻马店市，本科毕业（今年 6 月）于新疆大学，硕士就读（今年 9 月）于浙江大学\")\n    text(\"- 2025.10~2026.6 具身智能研究\")\n    text(\"## 为什么需要灵巧手?\")\n    text(\"- 复杂手内操作\")\n    image(\"images/cube.png\", width=600)\n    text(\"- 现实世界对人手操作更加友好\")\n    image(\"images/door.jpg\", width=600)\n    \n\n\ndef closing():\n    image(\"images/close.png\", width=800)\n\n\nif __name__ == \"__main__\":\n    main()\n",
     "sections/__init__.py": "\"\"\"Presentation sections for the dexterous-hand sharing.\"\"\"\n",
-    "sections/algorithms.py": "from execute_util import text\n\n\ndef present():\n    text(\"## 算法\")\n    text(\"算法部分先按从感知到控制的链路组织：状态估计、策略学习、仿真到现实。\")\n\n    pipeline = [\"perception\", \"policy\", \"sim2real\"]  # @inspect pipeline\n    text(\"- 感知与状态估计：手部姿态、物体状态、接触状态。\")\n    text(\"- 策略学习：模仿学习、强化学习、扩散策略、视觉语言动作模型。\")\n    text(\"- Sim2Real：域随机化、系统辨识、残差控制、数据闭环。\")\n\n    text(\"这一部分后续可以补：经典论文脉络、训练数据、benchmark 与失败案例。\")\n",
-    "sections/companies.py": "from execute_util import text\n\n\ndef present():\n    text(\"## 公司\")\n    text(\"公司部分先按产品定位拆开：机器人本体公司、灵巧手供应商、平台/研究机构。\")\n\n    company_groups = [\"机器人本体\", \"灵巧手供应商\", \"平台与研究机构\"]  # @inspect company_groups\n    text(\"- 机器人本体：关注整机任务、量产能力、应用场景。\")\n    text(\"- 灵巧手供应商：关注手部硬件指标、控制接口、生态兼容。\")\n    text(\"- 平台/研究机构：关注开源数据、仿真环境、基准任务。\")\n\n    text(\"这一部分后续可以补：公司清单、核心产品、融资/客户/技术路线。\")\n",
-    "sections/hardware.py": "from execute_util import text\n\n\ndef present():\n    text(\"## 硬件\")\n    text(\"灵巧手的硬件部分先建立三个观察维度：结构、驱动、传感。\")\n\n    degrees_of_freedom = 20  # @inspect degrees_of_freedom\n    text(\"- 结构：自由度、手指布局、掌部机构、腕手连接。\")\n    text(\"- 驱动：电机、腱绳、齿轮、液压/气动，以及力控能力。\")\n    text(\"- 传感：触觉、关节编码器、力/扭矩、视觉与本体感知。\")\n\n    text(\"这一部分后续可以补：代表性硬件对比表、拆解图、成本/可靠性分析。\")\n"
+    "sections/algorithms.py": "from execute_util import text, image\n\n\ndef present():\n    text(\"## 算法\")\n    reinforce_learning()\n    imitation_learning()\n\ndef reinforce_learning():\n    text(\"核心思想: 通过试错 + 奖励让机器人自主探索出最优操作策略。\")\n    text(\"优势: 强大的自适应能力,可以应对复杂环境和不确定性 劣势: 训练时间长,需要大量仿真或真实试错\")\n\n    simulated_world()\n    real_world()\n\ndef imitation_learning():\n    directly_from_video()\n    data_synthesis()\n    teleoperate()\n    across_domain_foundation_model()\n    post_rl()\n    \ndef directly_from_video():\n    text(\"- Robotic Telekinesis\")\n    image(\"images/Robotic_Telekinesis.png\", width=800)\n    \ndef data_synthesis():\n    text(\"- retarget\")\n    text(\"- D(R,O) Grasp\")\n    text(\"- DexGarmentLab\")\n    text(\"- DemoGrasp\")\n    image(\"images/demo_grasp.png\", width=800)\n    \ndef teleoperate():\n    text(\"- 【2024】Tilde。遥操作数据+Diffusion Policy\")\n    image(\"images/tilde.png\", width=800)\n    text(\"- 【2024】3D Diffusion Policy\")\n    image(\"images/3D_Diffusion_Policy.png\", width=800)\n\ndef across_domain_foundation_model():\n    text(\"NVIDIA GR00T N1、Video Prediction Policy（星动纪元）、π0.5、wall-x（自变量）、Gen0（Generalist AI）\")\n    text(\"- BeingH0\")\n    image(\"images/being-h0.png\", width=800)\n    image(\"images/tokenizer.png\")\n    text(\"- DexGraspVLA (cite: 102)\")\n    image(\"images/DexGraspVLA.png\", width=800)\n    text(\"- UniDex (cite: 4)\")\n    image(\"images/UniDex.png\", width=800)\n    \ndef post_rl():\n    text(\"- DEXNDM\")\n    image(\"images/post_rl.png\", width=800)\n    text(\"- DAgger、RECAP\")\n\ndef retarget():\n    text(\"### 有参考轨迹引导与重定向算法\")\n    text(\"- 重定向定义。将一个源对象（通常是人类）的运动数据，经过数学转换后，迁移到一个具有不同尺寸、骨骼比例甚至不同物理结构的目标对象（如虚拟角色、机器人）上，并尽可能保留原动作的意图和神态\")\n    text(\"- 应用领域。影视特效与游戏动画、虚拟现实与虚拟主播、机器人模仿学习\")\n    text(\"#### 直接关节映射与直接笛卡尔映射\")\n    text(\"- 直接关节映射。优点：计算简单。缺点：非线性偏移，无法形成有效的闭合力封闭\")\n    text(\"- 直接笛卡尔映射。优点：稍微准了点。缺点：位置对了，但接触法线不对，导致螺旋轴漂移\")\n    text(\"#### 现代方法\")\n    image(\"images/video_rl.png\", width=600)\n    text(\"- 【2022】DexVIP\")\n    image(\"images/DexVIP.png\", width=800)\n    text(\"- 【2025】**ManipTrans**。模仿学习粗糙手部动作，强化学习网络学残差\")\n    image(\"images/maniptrans.png\", width=800)\n    text(\"- 【2025】**DexMachina**。PD 控制器增加辅助力\")\n    image(\"images/dexmachina.png\", width=800)\n    image(\"images/retarget.png\", width=800)\n\ndef naive_direct_learning():\n    text(\"## 非真机（PPO / SAC）\")\n    text(\"### 无参考轨迹引导\")\n    image(\"images/rl.png\", width=600)\n    text(\"- 【2024】**RoboPianist**。1）使用 DroQ；2）Markov?\")\n    image(\"images/robopiano.png\", width=800)\n    text(\"- 【2025】ClusterDexGrasp\")\n    image(\"images/cluster_grasp.png\", width=800)\n\ndef simulated_world():\n    naive_direct_learning()\n    retarget()\n    \ndef real_world():\n    text(\"## 真机（样本效率、环境重置、低层电机控制、相机低延迟通信、奖励函数的物理标定）\")\n    \n    text(\"- 【2024】SERL（https://arxiv.org/pdf/2401.16013）。基于 RLPD、成功/失败分类器、执行/重置两个模型都训练\")\n    image(\"images/SERL.png\", width=800)\n    text(\"- 【2023】EUREKA 与 DrEureka。将模拟环境的物理代码摘要和简单的任务目标语言描述作为输入，利用LLM出色的代码编写能力生成初始的Python格式的奖励函数代码；随后，系统在仿真中运行该奖励代码进行短期RL训练，提取性能反馈日志，并将其作为上下文再次喂给LLM，进行无梯度的上下文提示进化优化\")\n    image(\"images/eureka.png\")\n    text(\"- 智元\")\n    text(\"- 自变量\")\n",
+    "sections/companies.py": "from execute_util import image, text\n\n\ndef present():\n    text(\"## 公司\")\n\n    image(\"images/corporation.png\", width=800)\n    text(\"指数、自由度、触觉皮肤\")\n    image(\"images/comparare.png\", width=800)\n",
+    "sections/hardware.py": "from execute_util import text, image, link\n\n\ndef present():\n    text(\"## 硬件\")\n    human_hands_and_dexterous_hands()\n    drive_method()\n\n\ndef human_hands_and_dexterous_hands():\n    text(\"## 人手与灵巧手\")\n    text(\"### 自由度定义\")\n    text(\"在物理学和化学中：考虑一个物理系统，**自由度**指：**能够确定所选参数化方案中所有参数值，而被需要的最少参数数量**。来自：\"), link(\"https://en.wikipedia.org/wiki/Degrees_of_freedom_(physics_and_chemistry)\")\n    text(\"在机器人学中：机器人机构所具有的独立驱动运动（或独立运动输入）的数目\")\n    text(\"### 自由度与人手\")\n    image(\"images/human_finger.png\",width=800)\n    text(\"人手结构：腕骨、掌骨、指骨（近节指骨、中节指骨、远节指骨)\")\n    text(\"主流观点一般认为人手有 21 个自由度（不包括手腕关节），最严谨的答案是 27 个（包括手腕关节）。来自：\"), link(\"https://www.dgp.toronto.edu/~gelkoura/noback/scapaper03.pdf\")\n    text(\"### 自由度与灵巧手\")\n    image(\"images/wuji.png\")\n    text(\"在三维空间中，一个物体不受约束，有 6 个自由度：`(x, y, z, roll, yaw, pitch)` \")\n    text(\"**主动自由度**。系统中直接由驱动器（e.g. 电机）驱动的自由度\")\n    text(\"**被动自由度**。不由驱动器直接驱动，与主动自由度耦合联动。\")\n    text(\"**欠驱动系统**。存在被动自由度的系统\")\n    \ndef drive_method():\n    text(\"## 灵巧手的驱动器\")\n    text(\"### 舵机（电机+多级齿轮减速箱）\")\n    image(\"images/舵机.png\")\n    text(\"种类：PWM、TTL\")\n    text(\"优点：价格低、控制简单、扭矩大\")\n    text(\"缺点：寿命短、精度低、速度慢、无力控\")\n    text(\"### 空心杯电机+减速箱+执行器\")\n    image(\"images/空心杯电机.png\", width=800)\n    text(\"有刷/无刷；行星/谐波/摆线；直线/旋转\")\n    text(\"### 关节模组（电机+多级齿轮减速箱）\")\n    text(\"更智能的舵机 🤔\")\n\n    text(\"## 灵巧手的驱动方式\")\n    text(\"### 直驱\")\n    image(\"images/direct.png\", width=800)\n    text(\"优点：精度好，响应快，自由度高\")\n    text(\"缺点：积热和体积\")\n    text(\"### 绳驱 / 肌腱 / 腱绳\")\n    image(\"images/rope.png\", width=800)\n    text(\"电机安装在手掌或前臂，通过拉紧 / 放松绳索控制手指弯曲和伸展。手指部分轻巧，适合高自由度复杂动作。绳索易磨损，需要定期维护\")\n    text(\"优点：便宜、末端重量小、自由度高、柔性缓冲\")\n    text(\"缺点：结构复杂、刚度不足\")\n    text(\"### 连杆灵巧手\")\n    image(\"images/gun.png\", width=800)\n    text(\"- 串联：一系列构件通过运动副**首尾相连**组成的开式运动链\")\n    text(\"- 并联：末端执行器和基座之间至少通过两个独立的运动链相连，从而构成闭式运动链的机构\")\n    image(\"images/xiaopeng_dexterous.png\")\n    text(\"### 新材料驱动\")\n    text(\"采用形状记忆合金(SMA)、液晶弹性体(LCE)、柔性气囊等新材料作为驱动器。优点: 轻量化,仿生度高 缺点: 控制复杂,耐久性待验证\")\n    text(\"### ？反驱\")\n"
   },
   "steps": [
     {
@@ -67,14 +69,14 @@
           "path": "presentation.py",
           "line_number": 14,
           "function_name": "intro",
-          "code": "text(\"# 灵巧手展示分享\")"
+          "code": "text(\"## 自我介绍\")"
         }
       ],
       "env": {},
       "renderings": [
         {
           "type": "markdown",
-          "data": "# 灵巧手展示分享",
+          "data": "## 自我介绍",
           "style": {},
           "external_link": null,
           "internal_link": null
@@ -95,14 +97,42 @@
           "path": "presentation.py",
           "line_number": 15,
           "function_name": "intro",
-          "code": "text(\"目标：先搭起一个能持续扩展的展示框架，再逐步补内容、资料和图。\")"
+          "code": "text(\"- 孙海洋\")"
         }
       ],
       "env": {},
       "renderings": [
         {
           "type": "markdown",
-          "data": "目标：先搭起一个能持续扩展的展示框架，再逐步补内容、资料和图。",
+          "data": "- 孙海洋",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 6,
+          "function_name": "main",
+          "code": "intro()"
+        },
+        {
+          "path": "presentation.py",
+          "line_number": 16,
+          "function_name": "intro",
+          "code": "text(\"- 河南驻马店市，本科毕业（今年 6 月）于新疆大学，硕士就读（今年 9 月）于浙江大学\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "- 河南驻马店市，本科毕业（今年 6 月）于新疆大学，硕士就读（今年 9 月）于浙江大学",
           "style": {},
           "external_link": null,
           "internal_link": null
@@ -123,17 +153,19 @@
           "path": "presentation.py",
           "line_number": 17,
           "function_name": "intro",
-          "code": "sections = [\"硬件\", \"公司\", \"算法\"]  # @inspect sections"
+          "code": "text(\"- 2025.10~2026.6 具身智能研究\")"
         }
       ],
-      "env": {
-        "sections": [
-          "硬件",
-          "公司",
-          "算法"
-        ]
-      },
-      "renderings": [],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "- 2025.10~2026.6 具身智能研究",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
       "stdout": "",
       "stderr": ""
     },
@@ -149,14 +181,14 @@
           "path": "presentation.py",
           "line_number": 18,
           "function_name": "intro",
-          "code": "text(\"框架分成三部分：**硬件**、**公司**、**算法**。\")"
+          "code": "text(\"## 为什么需要灵巧手?\")"
         }
       ],
       "env": {},
       "renderings": [
         {
           "type": "markdown",
-          "data": "框架分成三部分：**硬件**、**公司**、**算法**。",
+          "data": "## 为什么需要灵巧手?",
           "style": {},
           "external_link": null,
           "internal_link": null
@@ -177,14 +209,14 @@
           "path": "presentation.py",
           "line_number": 19,
           "function_name": "intro",
-          "code": "text(\"展示形式参考 executable lecture：内容是 Python 程序，运行后生成可交互 trace。\")"
+          "code": "text(\"- 复杂手内操作\")"
         }
       ],
       "env": {},
       "renderings": [
         {
           "type": "markdown",
-          "data": "展示形式参考 executable lecture：内容是 Python 程序，运行后生成可交互 trace。",
+          "data": "- 复杂手内操作",
           "style": {},
           "external_link": null,
           "internal_link": null
@@ -205,27 +237,77 @@
           "path": "presentation.py",
           "line_number": 20,
           "function_name": "intro",
-          "code": "text(\"内部跳转示例：\"), link(hardware.present)"
+          "code": "image(\"images/cube.png\", width=600)"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "image",
+          "data": "images/cube.png",
+          "style": {
+            "width": 600
+          },
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 6,
+          "function_name": "main",
+          "code": "intro()"
+        },
+        {
+          "path": "presentation.py",
+          "line_number": 21,
+          "function_name": "intro",
+          "code": "text(\"- 现实世界对人手操作更加友好\")"
         }
       ],
       "env": {},
       "renderings": [
         {
           "type": "markdown",
-          "data": "内部跳转示例：",
+          "data": "- 现实世界对人手操作更加友好",
           "style": {},
           "external_link": null,
           "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 6,
+          "function_name": "main",
+          "code": "intro()"
         },
         {
-          "type": "link",
-          "data": "present",
-          "style": {},
+          "path": "presentation.py",
+          "line_number": 22,
+          "function_name": "intro",
+          "code": "image(\"images/door.jpg\", width=600)"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "image",
+          "data": "images/door.jpg",
+          "style": {
+            "width": 600
+          },
           "external_link": null,
-          "internal_link": {
-            "path": "sections/hardware.py",
-            "line_number": 4
-          }
+          "internal_link": null
         }
       ],
       "stdout": "",
@@ -251,244 +333,6 @@
           "path": "presentation.py",
           "line_number": 7,
           "function_name": "main",
-          "code": "hardware.present()"
-        }
-      ],
-      "env": {},
-      "renderings": [],
-      "stdout": "",
-      "stderr": ""
-    },
-    {
-      "stack": [
-        {
-          "path": "presentation.py",
-          "line_number": 7,
-          "function_name": "main",
-          "code": "hardware.present()"
-        },
-        {
-          "path": "sections/hardware.py",
-          "line_number": 4,
-          "function_name": "present",
-          "code": "def present():"
-        }
-      ],
-      "env": {},
-      "renderings": [],
-      "stdout": "",
-      "stderr": ""
-    },
-    {
-      "stack": [
-        {
-          "path": "presentation.py",
-          "line_number": 7,
-          "function_name": "main",
-          "code": "hardware.present()"
-        },
-        {
-          "path": "sections/hardware.py",
-          "line_number": 5,
-          "function_name": "present",
-          "code": "text(\"## 硬件\")"
-        }
-      ],
-      "env": {},
-      "renderings": [
-        {
-          "type": "markdown",
-          "data": "## 硬件",
-          "style": {},
-          "external_link": null,
-          "internal_link": null
-        }
-      ],
-      "stdout": "",
-      "stderr": ""
-    },
-    {
-      "stack": [
-        {
-          "path": "presentation.py",
-          "line_number": 7,
-          "function_name": "main",
-          "code": "hardware.present()"
-        },
-        {
-          "path": "sections/hardware.py",
-          "line_number": 6,
-          "function_name": "present",
-          "code": "text(\"灵巧手的硬件部分先建立三个观察维度：结构、驱动、传感。\")"
-        }
-      ],
-      "env": {},
-      "renderings": [
-        {
-          "type": "markdown",
-          "data": "灵巧手的硬件部分先建立三个观察维度：结构、驱动、传感。",
-          "style": {},
-          "external_link": null,
-          "internal_link": null
-        }
-      ],
-      "stdout": "",
-      "stderr": ""
-    },
-    {
-      "stack": [
-        {
-          "path": "presentation.py",
-          "line_number": 7,
-          "function_name": "main",
-          "code": "hardware.present()"
-        },
-        {
-          "path": "sections/hardware.py",
-          "line_number": 8,
-          "function_name": "present",
-          "code": "degrees_of_freedom = 20  # @inspect degrees_of_freedom"
-        }
-      ],
-      "env": {
-        "degrees_of_freedom": 20
-      },
-      "renderings": [],
-      "stdout": "",
-      "stderr": ""
-    },
-    {
-      "stack": [
-        {
-          "path": "presentation.py",
-          "line_number": 7,
-          "function_name": "main",
-          "code": "hardware.present()"
-        },
-        {
-          "path": "sections/hardware.py",
-          "line_number": 9,
-          "function_name": "present",
-          "code": "text(\"- 结构：自由度、手指布局、掌部机构、腕手连接。\")"
-        }
-      ],
-      "env": {},
-      "renderings": [
-        {
-          "type": "markdown",
-          "data": "- 结构：自由度、手指布局、掌部机构、腕手连接。",
-          "style": {},
-          "external_link": null,
-          "internal_link": null
-        }
-      ],
-      "stdout": "",
-      "stderr": ""
-    },
-    {
-      "stack": [
-        {
-          "path": "presentation.py",
-          "line_number": 7,
-          "function_name": "main",
-          "code": "hardware.present()"
-        },
-        {
-          "path": "sections/hardware.py",
-          "line_number": 10,
-          "function_name": "present",
-          "code": "text(\"- 驱动：电机、腱绳、齿轮、液压/气动，以及力控能力。\")"
-        }
-      ],
-      "env": {},
-      "renderings": [
-        {
-          "type": "markdown",
-          "data": "- 驱动：电机、腱绳、齿轮、液压/气动，以及力控能力。",
-          "style": {},
-          "external_link": null,
-          "internal_link": null
-        }
-      ],
-      "stdout": "",
-      "stderr": ""
-    },
-    {
-      "stack": [
-        {
-          "path": "presentation.py",
-          "line_number": 7,
-          "function_name": "main",
-          "code": "hardware.present()"
-        },
-        {
-          "path": "sections/hardware.py",
-          "line_number": 11,
-          "function_name": "present",
-          "code": "text(\"- 传感：触觉、关节编码器、力/扭矩、视觉与本体感知。\")"
-        }
-      ],
-      "env": {},
-      "renderings": [
-        {
-          "type": "markdown",
-          "data": "- 传感：触觉、关节编码器、力/扭矩、视觉与本体感知。",
-          "style": {},
-          "external_link": null,
-          "internal_link": null
-        }
-      ],
-      "stdout": "",
-      "stderr": ""
-    },
-    {
-      "stack": [
-        {
-          "path": "presentation.py",
-          "line_number": 7,
-          "function_name": "main",
-          "code": "hardware.present()"
-        },
-        {
-          "path": "sections/hardware.py",
-          "line_number": 13,
-          "function_name": "present",
-          "code": "text(\"这一部分后续可以补：代表性硬件对比表、拆解图、成本/可靠性分析。\")"
-        }
-      ],
-      "env": {},
-      "renderings": [
-        {
-          "type": "markdown",
-          "data": "这一部分后续可以补：代表性硬件对比表、拆解图、成本/可靠性分析。",
-          "style": {},
-          "external_link": null,
-          "internal_link": null
-        }
-      ],
-      "stdout": "",
-      "stderr": ""
-    },
-    {
-      "stack": [
-        {
-          "path": "presentation.py",
-          "line_number": 7,
-          "function_name": "main",
-          "code": "hardware.present()"
-        }
-      ],
-      "env": {},
-      "renderings": [],
-      "stdout": "",
-      "stderr": ""
-    },
-    {
-      "stack": [
-        {
-          "path": "presentation.py",
-          "line_number": 8,
-          "function_name": "main",
           "code": "companies.present()"
         }
       ],
@@ -501,7 +345,7 @@
       "stack": [
         {
           "path": "presentation.py",
-          "line_number": 8,
+          "line_number": 7,
           "function_name": "main",
           "code": "companies.present()"
         },
@@ -521,7 +365,7 @@
       "stack": [
         {
           "path": "presentation.py",
-          "line_number": 8,
+          "line_number": 7,
           "function_name": "main",
           "code": "companies.present()"
         },
@@ -549,22 +393,52 @@
       "stack": [
         {
           "path": "presentation.py",
-          "line_number": 8,
+          "line_number": 7,
           "function_name": "main",
           "code": "companies.present()"
         },
         {
           "path": "sections/companies.py",
-          "line_number": 6,
+          "line_number": 7,
           "function_name": "present",
-          "code": "text(\"公司部分先按产品定位拆开：机器人本体公司、灵巧手供应商、平台/研究机构。\")"
+          "code": "image(\"images/corporation.png\", width=800)"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "image",
+          "data": "images/corporation.png",
+          "style": {
+            "width": 800
+          },
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 7,
+          "function_name": "main",
+          "code": "companies.present()"
+        },
+        {
+          "path": "sections/companies.py",
+          "line_number": 8,
+          "function_name": "present",
+          "code": "text(\"指数、自由度、触觉皮肤\")"
         }
       ],
       "env": {},
       "renderings": [
         {
           "type": "markdown",
-          "data": "公司部分先按产品定位拆开：机器人本体公司、灵巧手供应商、平台/研究机构。",
+          "data": "指数、自由度、触觉皮肤",
           "style": {},
           "external_link": null,
           "internal_link": null
@@ -577,24 +451,42 @@
       "stack": [
         {
           "path": "presentation.py",
-          "line_number": 8,
+          "line_number": 7,
           "function_name": "main",
           "code": "companies.present()"
         },
         {
           "path": "sections/companies.py",
-          "line_number": 8,
+          "line_number": 9,
           "function_name": "present",
-          "code": "company_groups = [\"机器人本体\", \"灵巧手供应商\", \"平台与研究机构\"]  # @inspect company_groups"
+          "code": "image(\"images/comparare.png\", width=800)"
         }
       ],
-      "env": {
-        "company_groups": [
-          "机器人本体",
-          "灵巧手供应商",
-          "平台与研究机构"
-        ]
-      },
+      "env": {},
+      "renderings": [
+        {
+          "type": "image",
+          "data": "images/comparare.png",
+          "style": {
+            "width": 800
+          },
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 7,
+          "function_name": "main",
+          "code": "companies.present()"
+        }
+      ],
+      "env": {},
       "renderings": [],
       "stdout": "",
       "stderr": ""
@@ -605,20 +497,54 @@
           "path": "presentation.py",
           "line_number": 8,
           "function_name": "main",
-          "code": "companies.present()"
+          "code": "hardware.present()"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
         },
         {
-          "path": "sections/companies.py",
-          "line_number": 9,
+          "path": "sections/hardware.py",
+          "line_number": 4,
           "function_name": "present",
-          "code": "text(\"- 机器人本体：关注整机任务、量产能力、应用场景。\")"
+          "code": "def present():"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 5,
+          "function_name": "present",
+          "code": "text(\"## 硬件\")"
         }
       ],
       "env": {},
       "renderings": [
         {
           "type": "markdown",
-          "data": "- 机器人本体：关注整机任务、量产能力、应用场景。",
+          "data": "## 硬件",
           "style": {},
           "external_link": null,
           "internal_link": null
@@ -633,25 +559,43 @@
           "path": "presentation.py",
           "line_number": 8,
           "function_name": "main",
-          "code": "companies.present()"
+          "code": "hardware.present()"
         },
         {
-          "path": "sections/companies.py",
+          "path": "sections/hardware.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "human_hands_and_dexterous_hands()"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "human_hands_and_dexterous_hands()"
+        },
+        {
+          "path": "sections/hardware.py",
           "line_number": 10,
-          "function_name": "present",
-          "code": "text(\"- 灵巧手供应商：关注手部硬件指标、控制接口、生态兼容。\")"
+          "function_name": "human_hands_and_dexterous_hands",
+          "code": "def human_hands_and_dexterous_hands():"
         }
       ],
       "env": {},
-      "renderings": [
-        {
-          "type": "markdown",
-          "data": "- 灵巧手供应商：关注手部硬件指标、控制接口、生态兼容。",
-          "style": {},
-          "external_link": null,
-          "internal_link": null
-        }
-      ],
+      "renderings": [],
       "stdout": "",
       "stderr": ""
     },
@@ -661,20 +605,26 @@
           "path": "presentation.py",
           "line_number": 8,
           "function_name": "main",
-          "code": "companies.present()"
+          "code": "hardware.present()"
         },
         {
-          "path": "sections/companies.py",
+          "path": "sections/hardware.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "human_hands_and_dexterous_hands()"
+        },
+        {
+          "path": "sections/hardware.py",
           "line_number": 11,
-          "function_name": "present",
-          "code": "text(\"- 平台/研究机构：关注开源数据、仿真环境、基准任务。\")"
+          "function_name": "human_hands_and_dexterous_hands",
+          "code": "text(\"## 人手与灵巧手\")"
         }
       ],
       "env": {},
       "renderings": [
         {
           "type": "markdown",
-          "data": "- 平台/研究机构：关注开源数据、仿真环境、基准任务。",
+          "data": "## 人手与灵巧手",
           "style": {},
           "external_link": null,
           "internal_link": null
@@ -689,20 +639,26 @@
           "path": "presentation.py",
           "line_number": 8,
           "function_name": "main",
-          "code": "companies.present()"
+          "code": "hardware.present()"
         },
         {
-          "path": "sections/companies.py",
-          "line_number": 13,
+          "path": "sections/hardware.py",
+          "line_number": 6,
           "function_name": "present",
-          "code": "text(\"这一部分后续可以补：公司清单、核心产品、融资/客户/技术路线。\")"
+          "code": "human_hands_and_dexterous_hands()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 12,
+          "function_name": "human_hands_and_dexterous_hands",
+          "code": "text(\"### 自由度定义\")"
         }
       ],
       "env": {},
       "renderings": [
         {
           "type": "markdown",
-          "data": "这一部分后续可以补：公司清单、核心产品、融资/客户/技术路线。",
+          "data": "### 自由度定义",
           "style": {},
           "external_link": null,
           "internal_link": null
@@ -717,7 +673,1527 @@
           "path": "presentation.py",
           "line_number": 8,
           "function_name": "main",
-          "code": "companies.present()"
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "human_hands_and_dexterous_hands()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 13,
+          "function_name": "human_hands_and_dexterous_hands",
+          "code": "text(\"在物理学和化学中：考虑一个物理系统，**自由度**指：**能够确定所选参数化方案中所有参数值，而被需要的最少参数数量**。来自：\"), link(\"https://en.wikipedia.org/wiki/Degrees_of_freedom_(physics_and_chemistry)\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "在物理学和化学中：考虑一个物理系统，**自由度**指：**能够确定所选参数化方案中所有参数值，而被需要的最少参数数量**。来自：",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        },
+        {
+          "type": "link",
+          "data": null,
+          "style": {},
+          "external_link": {
+            "url": "https://en.wikipedia.org/wiki/Degrees_of_freedom_(physics_and_chemistry)",
+            "title": null,
+            "authors": null,
+            "date": null,
+            "organization": null,
+            "description": null,
+            "notes": null
+          },
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "human_hands_and_dexterous_hands()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 14,
+          "function_name": "human_hands_and_dexterous_hands",
+          "code": "text(\"在机器人学中：机器人机构所具有的独立驱动运动（或独立运动输入）的数目\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "在机器人学中：机器人机构所具有的独立驱动运动（或独立运动输入）的数目",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "human_hands_and_dexterous_hands()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 15,
+          "function_name": "human_hands_and_dexterous_hands",
+          "code": "text(\"### 自由度与人手\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "### 自由度与人手",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "human_hands_and_dexterous_hands()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 16,
+          "function_name": "human_hands_and_dexterous_hands",
+          "code": "image(\"images/human_finger.png\",width=800)"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "image",
+          "data": "images/human_finger.png",
+          "style": {
+            "width": 800
+          },
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "human_hands_and_dexterous_hands()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 17,
+          "function_name": "human_hands_and_dexterous_hands",
+          "code": "text(\"人手结构：腕骨、掌骨、指骨（近节指骨、中节指骨、远节指骨)\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "人手结构：腕骨、掌骨、指骨（近节指骨、中节指骨、远节指骨)",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "human_hands_and_dexterous_hands()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 18,
+          "function_name": "human_hands_and_dexterous_hands",
+          "code": "text(\"主流观点一般认为人手有 21 个自由度（不包括手腕关节），最严谨的答案是 27 个（包括手腕关节）。来自：\"), link(\"https://www.dgp.toronto.edu/~gelkoura/noback/scapaper03.pdf\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "主流观点一般认为人手有 21 个自由度（不包括手腕关节），最严谨的答案是 27 个（包括手腕关节）。来自：",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        },
+        {
+          "type": "link",
+          "data": null,
+          "style": {},
+          "external_link": {
+            "url": "https://www.dgp.toronto.edu/~gelkoura/noback/scapaper03.pdf",
+            "title": null,
+            "authors": null,
+            "date": null,
+            "organization": null,
+            "description": null,
+            "notes": null
+          },
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "human_hands_and_dexterous_hands()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 19,
+          "function_name": "human_hands_and_dexterous_hands",
+          "code": "text(\"### 自由度与灵巧手\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "### 自由度与灵巧手",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "human_hands_and_dexterous_hands()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 20,
+          "function_name": "human_hands_and_dexterous_hands",
+          "code": "image(\"images/wuji.png\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "image",
+          "data": "images/wuji.png",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "human_hands_and_dexterous_hands()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 21,
+          "function_name": "human_hands_and_dexterous_hands",
+          "code": "text(\"在三维空间中，一个物体不受约束，有 6 个自由度：`(x, y, z, roll, yaw, pitch)` \")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "在三维空间中，一个物体不受约束，有 6 个自由度：`(x, y, z, roll, yaw, pitch)` ",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "human_hands_and_dexterous_hands()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 22,
+          "function_name": "human_hands_and_dexterous_hands",
+          "code": "text(\"**主动自由度**。系统中直接由驱动器（e.g. 电机）驱动的自由度\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "**主动自由度**。系统中直接由驱动器（e.g. 电机）驱动的自由度",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "human_hands_and_dexterous_hands()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 23,
+          "function_name": "human_hands_and_dexterous_hands",
+          "code": "text(\"**被动自由度**。不由驱动器直接驱动，与主动自由度耦合联动。\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "**被动自由度**。不由驱动器直接驱动，与主动自由度耦合联动。",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "human_hands_and_dexterous_hands()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 24,
+          "function_name": "human_hands_and_dexterous_hands",
+          "code": "text(\"**欠驱动系统**。存在被动自由度的系统\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "**欠驱动系统**。存在被动自由度的系统",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "human_hands_and_dexterous_hands()"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "drive_method()"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "drive_method()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 26,
+          "function_name": "drive_method",
+          "code": "def drive_method():"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "drive_method()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 27,
+          "function_name": "drive_method",
+          "code": "text(\"## 灵巧手的驱动器\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "## 灵巧手的驱动器",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "drive_method()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 28,
+          "function_name": "drive_method",
+          "code": "text(\"### 舵机（电机+多级齿轮减速箱）\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "### 舵机（电机+多级齿轮减速箱）",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "drive_method()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 29,
+          "function_name": "drive_method",
+          "code": "image(\"images/舵机.png\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "image",
+          "data": "images/舵机.png",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "drive_method()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 30,
+          "function_name": "drive_method",
+          "code": "text(\"种类：PWM、TTL\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "种类：PWM、TTL",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "drive_method()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 31,
+          "function_name": "drive_method",
+          "code": "text(\"优点：价格低、控制简单、扭矩大\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "优点：价格低、控制简单、扭矩大",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "drive_method()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 32,
+          "function_name": "drive_method",
+          "code": "text(\"缺点：寿命短、精度低、速度慢、无力控\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "缺点：寿命短、精度低、速度慢、无力控",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "drive_method()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 33,
+          "function_name": "drive_method",
+          "code": "text(\"### 空心杯电机+减速箱+执行器\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "### 空心杯电机+减速箱+执行器",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "drive_method()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 34,
+          "function_name": "drive_method",
+          "code": "image(\"images/空心杯电机.png\", width=800)"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "image",
+          "data": "images/空心杯电机.png",
+          "style": {
+            "width": 800
+          },
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "drive_method()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 35,
+          "function_name": "drive_method",
+          "code": "text(\"有刷/无刷；行星/谐波/摆线；直线/旋转\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "有刷/无刷；行星/谐波/摆线；直线/旋转",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "drive_method()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 36,
+          "function_name": "drive_method",
+          "code": "text(\"### 关节模组（电机+多级齿轮减速箱）\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "### 关节模组（电机+多级齿轮减速箱）",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "drive_method()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 37,
+          "function_name": "drive_method",
+          "code": "text(\"更智能的舵机 🤔\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "更智能的舵机 🤔",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "drive_method()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 39,
+          "function_name": "drive_method",
+          "code": "text(\"## 灵巧手的驱动方式\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "## 灵巧手的驱动方式",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "drive_method()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 40,
+          "function_name": "drive_method",
+          "code": "text(\"### 直驱\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "### 直驱",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "drive_method()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 41,
+          "function_name": "drive_method",
+          "code": "image(\"images/direct.png\", width=800)"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "image",
+          "data": "images/direct.png",
+          "style": {
+            "width": 800
+          },
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "drive_method()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 42,
+          "function_name": "drive_method",
+          "code": "text(\"优点：精度好，响应快，自由度高\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "优点：精度好，响应快，自由度高",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "drive_method()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 43,
+          "function_name": "drive_method",
+          "code": "text(\"缺点：积热和体积\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "缺点：积热和体积",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "drive_method()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 44,
+          "function_name": "drive_method",
+          "code": "text(\"### 绳驱 / 肌腱 / 腱绳\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "### 绳驱 / 肌腱 / 腱绳",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "drive_method()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 45,
+          "function_name": "drive_method",
+          "code": "image(\"images/rope.png\", width=800)"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "image",
+          "data": "images/rope.png",
+          "style": {
+            "width": 800
+          },
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "drive_method()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 46,
+          "function_name": "drive_method",
+          "code": "text(\"电机安装在手掌或前臂，通过拉紧 / 放松绳索控制手指弯曲和伸展。手指部分轻巧，适合高自由度复杂动作。绳索易磨损，需要定期维护\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "电机安装在手掌或前臂，通过拉紧 / 放松绳索控制手指弯曲和伸展。手指部分轻巧，适合高自由度复杂动作。绳索易磨损，需要定期维护",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "drive_method()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 47,
+          "function_name": "drive_method",
+          "code": "text(\"优点：便宜、末端重量小、自由度高、柔性缓冲\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "优点：便宜、末端重量小、自由度高、柔性缓冲",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "drive_method()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 48,
+          "function_name": "drive_method",
+          "code": "text(\"缺点：结构复杂、刚度不足\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "缺点：结构复杂、刚度不足",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "drive_method()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 49,
+          "function_name": "drive_method",
+          "code": "text(\"### 连杆灵巧手\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "### 连杆灵巧手",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "drive_method()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 50,
+          "function_name": "drive_method",
+          "code": "image(\"images/gun.png\", width=800)"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "image",
+          "data": "images/gun.png",
+          "style": {
+            "width": 800
+          },
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "drive_method()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 51,
+          "function_name": "drive_method",
+          "code": "text(\"- 串联：一系列构件通过运动副**首尾相连**组成的开式运动链\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "- 串联：一系列构件通过运动副**首尾相连**组成的开式运动链",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "drive_method()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 52,
+          "function_name": "drive_method",
+          "code": "text(\"- 并联：末端执行器和基座之间至少通过两个独立的运动链相连，从而构成闭式运动链的机构\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "- 并联：末端执行器和基座之间至少通过两个独立的运动链相连，从而构成闭式运动链的机构",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "drive_method()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 53,
+          "function_name": "drive_method",
+          "code": "image(\"images/xiaopeng_dexterous.png\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "image",
+          "data": "images/xiaopeng_dexterous.png",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "drive_method()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 54,
+          "function_name": "drive_method",
+          "code": "text(\"### 新材料驱动\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "### 新材料驱动",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "drive_method()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 55,
+          "function_name": "drive_method",
+          "code": "text(\"采用形状记忆合金(SMA)、液晶弹性体(LCE)、柔性气囊等新材料作为驱动器。优点: 轻量化,仿生度高 缺点: 控制复杂,耐久性待验证\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "采用形状记忆合金(SMA)、液晶弹性体(LCE)、柔性气囊等新材料作为驱动器。优点: 轻量化,仿生度高 缺点: 控制复杂,耐久性待验证",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "drive_method()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 56,
+          "function_name": "drive_method",
+          "code": "text(\"### ？反驱\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "### ？反驱",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
+        },
+        {
+          "path": "sections/hardware.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "drive_method()"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 8,
+          "function_name": "main",
+          "code": "hardware.present()"
         }
       ],
       "env": {},
@@ -799,44 +2275,10 @@
           "path": "sections/algorithms.py",
           "line_number": 6,
           "function_name": "present",
-          "code": "text(\"算法部分先按从感知到控制的链路组织：状态估计、策略学习、仿真到现实。\")"
+          "code": "reinforce_learning()"
         }
       ],
       "env": {},
-      "renderings": [
-        {
-          "type": "markdown",
-          "data": "算法部分先按从感知到控制的链路组织：状态估计、策略学习、仿真到现实。",
-          "style": {},
-          "external_link": null,
-          "internal_link": null
-        }
-      ],
-      "stdout": "",
-      "stderr": ""
-    },
-    {
-      "stack": [
-        {
-          "path": "presentation.py",
-          "line_number": 9,
-          "function_name": "main",
-          "code": "algorithms.present()"
-        },
-        {
-          "path": "sections/algorithms.py",
-          "line_number": 8,
-          "function_name": "present",
-          "code": "pipeline = [\"perception\", \"policy\", \"sim2real\"]  # @inspect pipeline"
-        }
-      ],
-      "env": {
-        "pipeline": [
-          "perception",
-          "policy",
-          "sim2real"
-        ]
-      },
       "renderings": [],
       "stdout": "",
       "stderr": ""
@@ -851,16 +2293,48 @@
         },
         {
           "path": "sections/algorithms.py",
-          "line_number": 9,
+          "line_number": 6,
           "function_name": "present",
-          "code": "text(\"- 感知与状态估计：手部姿态、物体状态、接触状态。\")"
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 9,
+          "function_name": "reinforce_learning",
+          "code": "def reinforce_learning():"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 10,
+          "function_name": "reinforce_learning",
+          "code": "text(\"核心思想: 通过试错 + 奖励让机器人自主探索出最优操作策略。\")"
         }
       ],
       "env": {},
       "renderings": [
         {
           "type": "markdown",
-          "data": "- 感知与状态估计：手部姿态、物体状态、接触状态。",
+          "data": "核心思想: 通过试错 + 奖励让机器人自主探索出最优操作策略。",
           "style": {},
           "external_link": null,
           "internal_link": null
@@ -879,44 +2353,22 @@
         },
         {
           "path": "sections/algorithms.py",
-          "line_number": 10,
+          "line_number": 6,
           "function_name": "present",
-          "code": "text(\"- 策略学习：模仿学习、强化学习、扩散策略、视觉语言动作模型。\")"
-        }
-      ],
-      "env": {},
-      "renderings": [
-        {
-          "type": "markdown",
-          "data": "- 策略学习：模仿学习、强化学习、扩散策略、视觉语言动作模型。",
-          "style": {},
-          "external_link": null,
-          "internal_link": null
-        }
-      ],
-      "stdout": "",
-      "stderr": ""
-    },
-    {
-      "stack": [
-        {
-          "path": "presentation.py",
-          "line_number": 9,
-          "function_name": "main",
-          "code": "algorithms.present()"
+          "code": "reinforce_learning()"
         },
         {
           "path": "sections/algorithms.py",
           "line_number": 11,
-          "function_name": "present",
-          "code": "text(\"- Sim2Real：域随机化、系统辨识、残差控制、数据闭环。\")"
+          "function_name": "reinforce_learning",
+          "code": "text(\"优势: 强大的自适应能力,可以应对复杂环境和不确定性 劣势: 训练时间长,需要大量仿真或真实试错\")"
         }
       ],
       "env": {},
       "renderings": [
         {
           "type": "markdown",
-          "data": "- Sim2Real：域随机化、系统辨识、残差控制、数据闭环。",
+          "data": "优势: 强大的自适应能力,可以应对复杂环境和不确定性 劣势: 训练时间长,需要大量仿真或真实试错",
           "style": {},
           "external_link": null,
           "internal_link": null
@@ -935,21 +2387,3077 @@
         },
         {
           "path": "sections/algorithms.py",
-          "line_number": 13,
+          "line_number": 6,
           "function_name": "present",
-          "code": "text(\"这一部分后续可以补：经典论文脉络、训练数据、benchmark 与失败案例。\")"
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 13,
+          "function_name": "reinforce_learning",
+          "code": "simulated_world()"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 13,
+          "function_name": "reinforce_learning",
+          "code": "simulated_world()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 81,
+          "function_name": "simulated_world",
+          "code": "def simulated_world():"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 13,
+          "function_name": "reinforce_learning",
+          "code": "simulated_world()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 82,
+          "function_name": "simulated_world",
+          "code": "naive_direct_learning()"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 13,
+          "function_name": "reinforce_learning",
+          "code": "simulated_world()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 82,
+          "function_name": "simulated_world",
+          "code": "naive_direct_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 72,
+          "function_name": "naive_direct_learning",
+          "code": "def naive_direct_learning():"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 13,
+          "function_name": "reinforce_learning",
+          "code": "simulated_world()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 82,
+          "function_name": "simulated_world",
+          "code": "naive_direct_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 73,
+          "function_name": "naive_direct_learning",
+          "code": "text(\"## 非真机（PPO / SAC）\")"
         }
       ],
       "env": {},
       "renderings": [
         {
           "type": "markdown",
-          "data": "这一部分后续可以补：经典论文脉络、训练数据、benchmark 与失败案例。",
+          "data": "## 非真机（PPO / SAC）",
           "style": {},
           "external_link": null,
           "internal_link": null
         }
       ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 13,
+          "function_name": "reinforce_learning",
+          "code": "simulated_world()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 82,
+          "function_name": "simulated_world",
+          "code": "naive_direct_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 74,
+          "function_name": "naive_direct_learning",
+          "code": "text(\"### 无参考轨迹引导\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "### 无参考轨迹引导",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 13,
+          "function_name": "reinforce_learning",
+          "code": "simulated_world()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 82,
+          "function_name": "simulated_world",
+          "code": "naive_direct_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 75,
+          "function_name": "naive_direct_learning",
+          "code": "image(\"images/rl.png\", width=600)"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "image",
+          "data": "images/rl.png",
+          "style": {
+            "width": 600
+          },
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 13,
+          "function_name": "reinforce_learning",
+          "code": "simulated_world()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 82,
+          "function_name": "simulated_world",
+          "code": "naive_direct_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 76,
+          "function_name": "naive_direct_learning",
+          "code": "text(\"- 【2024】**RoboPianist**。1）使用 DroQ；2）Markov?\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "- 【2024】**RoboPianist**。1）使用 DroQ；2）Markov?",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 13,
+          "function_name": "reinforce_learning",
+          "code": "simulated_world()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 82,
+          "function_name": "simulated_world",
+          "code": "naive_direct_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 77,
+          "function_name": "naive_direct_learning",
+          "code": "image(\"images/robopiano.png\", width=800)"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "image",
+          "data": "images/robopiano.png",
+          "style": {
+            "width": 800
+          },
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 13,
+          "function_name": "reinforce_learning",
+          "code": "simulated_world()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 82,
+          "function_name": "simulated_world",
+          "code": "naive_direct_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 78,
+          "function_name": "naive_direct_learning",
+          "code": "text(\"- 【2025】ClusterDexGrasp\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "- 【2025】ClusterDexGrasp",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 13,
+          "function_name": "reinforce_learning",
+          "code": "simulated_world()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 82,
+          "function_name": "simulated_world",
+          "code": "naive_direct_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 79,
+          "function_name": "naive_direct_learning",
+          "code": "image(\"images/cluster_grasp.png\", width=800)"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "image",
+          "data": "images/cluster_grasp.png",
+          "style": {
+            "width": 800
+          },
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 13,
+          "function_name": "reinforce_learning",
+          "code": "simulated_world()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 82,
+          "function_name": "simulated_world",
+          "code": "naive_direct_learning()"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 13,
+          "function_name": "reinforce_learning",
+          "code": "simulated_world()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 83,
+          "function_name": "simulated_world",
+          "code": "retarget()"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 13,
+          "function_name": "reinforce_learning",
+          "code": "simulated_world()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 83,
+          "function_name": "simulated_world",
+          "code": "retarget()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 55,
+          "function_name": "retarget",
+          "code": "def retarget():"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 13,
+          "function_name": "reinforce_learning",
+          "code": "simulated_world()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 83,
+          "function_name": "simulated_world",
+          "code": "retarget()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 56,
+          "function_name": "retarget",
+          "code": "text(\"### 有参考轨迹引导与重定向算法\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "### 有参考轨迹引导与重定向算法",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 13,
+          "function_name": "reinforce_learning",
+          "code": "simulated_world()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 83,
+          "function_name": "simulated_world",
+          "code": "retarget()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 57,
+          "function_name": "retarget",
+          "code": "text(\"- 重定向定义。将一个源对象（通常是人类）的运动数据，经过数学转换后，迁移到一个具有不同尺寸、骨骼比例甚至不同物理结构的目标对象（如虚拟角色、机器人）上，并尽可能保留原动作的意图和神态\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "- 重定向定义。将一个源对象（通常是人类）的运动数据，经过数学转换后，迁移到一个具有不同尺寸、骨骼比例甚至不同物理结构的目标对象（如虚拟角色、机器人）上，并尽可能保留原动作的意图和神态",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 13,
+          "function_name": "reinforce_learning",
+          "code": "simulated_world()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 83,
+          "function_name": "simulated_world",
+          "code": "retarget()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 58,
+          "function_name": "retarget",
+          "code": "text(\"- 应用领域。影视特效与游戏动画、虚拟现实与虚拟主播、机器人模仿学习\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "- 应用领域。影视特效与游戏动画、虚拟现实与虚拟主播、机器人模仿学习",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 13,
+          "function_name": "reinforce_learning",
+          "code": "simulated_world()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 83,
+          "function_name": "simulated_world",
+          "code": "retarget()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 59,
+          "function_name": "retarget",
+          "code": "text(\"#### 直接关节映射与直接笛卡尔映射\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "#### 直接关节映射与直接笛卡尔映射",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 13,
+          "function_name": "reinforce_learning",
+          "code": "simulated_world()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 83,
+          "function_name": "simulated_world",
+          "code": "retarget()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 60,
+          "function_name": "retarget",
+          "code": "text(\"- 直接关节映射。优点：计算简单。缺点：非线性偏移，无法形成有效的闭合力封闭\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "- 直接关节映射。优点：计算简单。缺点：非线性偏移，无法形成有效的闭合力封闭",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 13,
+          "function_name": "reinforce_learning",
+          "code": "simulated_world()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 83,
+          "function_name": "simulated_world",
+          "code": "retarget()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 61,
+          "function_name": "retarget",
+          "code": "text(\"- 直接笛卡尔映射。优点：稍微准了点。缺点：位置对了，但接触法线不对，导致螺旋轴漂移\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "- 直接笛卡尔映射。优点：稍微准了点。缺点：位置对了，但接触法线不对，导致螺旋轴漂移",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 13,
+          "function_name": "reinforce_learning",
+          "code": "simulated_world()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 83,
+          "function_name": "simulated_world",
+          "code": "retarget()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 62,
+          "function_name": "retarget",
+          "code": "text(\"#### 现代方法\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "#### 现代方法",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 13,
+          "function_name": "reinforce_learning",
+          "code": "simulated_world()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 83,
+          "function_name": "simulated_world",
+          "code": "retarget()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 63,
+          "function_name": "retarget",
+          "code": "image(\"images/video_rl.png\", width=600)"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "image",
+          "data": "images/video_rl.png",
+          "style": {
+            "width": 600
+          },
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 13,
+          "function_name": "reinforce_learning",
+          "code": "simulated_world()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 83,
+          "function_name": "simulated_world",
+          "code": "retarget()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 64,
+          "function_name": "retarget",
+          "code": "text(\"- 【2022】DexVIP\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "- 【2022】DexVIP",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 13,
+          "function_name": "reinforce_learning",
+          "code": "simulated_world()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 83,
+          "function_name": "simulated_world",
+          "code": "retarget()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 65,
+          "function_name": "retarget",
+          "code": "image(\"images/DexVIP.png\", width=800)"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "image",
+          "data": "images/DexVIP.png",
+          "style": {
+            "width": 800
+          },
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 13,
+          "function_name": "reinforce_learning",
+          "code": "simulated_world()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 83,
+          "function_name": "simulated_world",
+          "code": "retarget()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 66,
+          "function_name": "retarget",
+          "code": "text(\"- 【2025】**ManipTrans**。模仿学习粗糙手部动作，强化学习网络学残差\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "- 【2025】**ManipTrans**。模仿学习粗糙手部动作，强化学习网络学残差",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 13,
+          "function_name": "reinforce_learning",
+          "code": "simulated_world()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 83,
+          "function_name": "simulated_world",
+          "code": "retarget()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 67,
+          "function_name": "retarget",
+          "code": "image(\"images/maniptrans.png\", width=800)"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "image",
+          "data": "images/maniptrans.png",
+          "style": {
+            "width": 800
+          },
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 13,
+          "function_name": "reinforce_learning",
+          "code": "simulated_world()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 83,
+          "function_name": "simulated_world",
+          "code": "retarget()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 68,
+          "function_name": "retarget",
+          "code": "text(\"- 【2025】**DexMachina**。PD 控制器增加辅助力\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "- 【2025】**DexMachina**。PD 控制器增加辅助力",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 13,
+          "function_name": "reinforce_learning",
+          "code": "simulated_world()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 83,
+          "function_name": "simulated_world",
+          "code": "retarget()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 69,
+          "function_name": "retarget",
+          "code": "image(\"images/dexmachina.png\", width=800)"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "image",
+          "data": "images/dexmachina.png",
+          "style": {
+            "width": 800
+          },
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 13,
+          "function_name": "reinforce_learning",
+          "code": "simulated_world()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 83,
+          "function_name": "simulated_world",
+          "code": "retarget()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 70,
+          "function_name": "retarget",
+          "code": "image(\"images/retarget.png\", width=800)"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "image",
+          "data": "images/retarget.png",
+          "style": {
+            "width": 800
+          },
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 13,
+          "function_name": "reinforce_learning",
+          "code": "simulated_world()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 83,
+          "function_name": "simulated_world",
+          "code": "retarget()"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 13,
+          "function_name": "reinforce_learning",
+          "code": "simulated_world()"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 14,
+          "function_name": "reinforce_learning",
+          "code": "real_world()"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 14,
+          "function_name": "reinforce_learning",
+          "code": "real_world()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 85,
+          "function_name": "real_world",
+          "code": "def real_world():"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 14,
+          "function_name": "reinforce_learning",
+          "code": "real_world()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 86,
+          "function_name": "real_world",
+          "code": "text(\"## 真机（样本效率、环境重置、低层电机控制、相机低延迟通信、奖励函数的物理标定）\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "## 真机（样本效率、环境重置、低层电机控制、相机低延迟通信、奖励函数的物理标定）",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 14,
+          "function_name": "reinforce_learning",
+          "code": "real_world()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 88,
+          "function_name": "real_world",
+          "code": "text(\"- 【2024】SERL（https://arxiv.org/pdf/2401.16013）。基于 RLPD、成功/失败分类器、执行/重置两个模型都训练\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "- 【2024】SERL（https://arxiv.org/pdf/2401.16013）。基于 RLPD、成功/失败分类器、执行/重置两个模型都训练",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 14,
+          "function_name": "reinforce_learning",
+          "code": "real_world()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 89,
+          "function_name": "real_world",
+          "code": "image(\"images/SERL.png\", width=800)"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "image",
+          "data": "images/SERL.png",
+          "style": {
+            "width": 800
+          },
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 14,
+          "function_name": "reinforce_learning",
+          "code": "real_world()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 90,
+          "function_name": "real_world",
+          "code": "text(\"- 【2023】EUREKA 与 DrEureka。将模拟环境的物理代码摘要和简单的任务目标语言描述作为输入，利用LLM出色的代码编写能力生成初始的Python格式的奖励函数代码；随后，系统在仿真中运行该奖励代码进行短期RL训练，提取性能反馈日志，并将其作为上下文再次喂给LLM，进行无梯度的上下文提示进化优化\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "- 【2023】EUREKA 与 DrEureka。将模拟环境的物理代码摘要和简单的任务目标语言描述作为输入，利用LLM出色的代码编写能力生成初始的Python格式的奖励函数代码；随后，系统在仿真中运行该奖励代码进行短期RL训练，提取性能反馈日志，并将其作为上下文再次喂给LLM，进行无梯度的上下文提示进化优化",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 14,
+          "function_name": "reinforce_learning",
+          "code": "real_world()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 91,
+          "function_name": "real_world",
+          "code": "image(\"images/eureka.png\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "image",
+          "data": "images/eureka.png",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 14,
+          "function_name": "reinforce_learning",
+          "code": "real_world()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 92,
+          "function_name": "real_world",
+          "code": "text(\"- 智元\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "- 智元",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 14,
+          "function_name": "reinforce_learning",
+          "code": "real_world()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 93,
+          "function_name": "real_world",
+          "code": "text(\"- 自变量\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "- 自变量",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "reinforce_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 14,
+          "function_name": "reinforce_learning",
+          "code": "real_world()"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 6,
+          "function_name": "present",
+          "code": "reinforce_learning()"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "imitation_learning()"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "imitation_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 16,
+          "function_name": "imitation_learning",
+          "code": "def imitation_learning():"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "imitation_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 17,
+          "function_name": "imitation_learning",
+          "code": "directly_from_video()"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "imitation_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 17,
+          "function_name": "imitation_learning",
+          "code": "directly_from_video()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 23,
+          "function_name": "directly_from_video",
+          "code": "def directly_from_video():"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "imitation_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 17,
+          "function_name": "imitation_learning",
+          "code": "directly_from_video()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 24,
+          "function_name": "directly_from_video",
+          "code": "text(\"- Robotic Telekinesis\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "- Robotic Telekinesis",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "imitation_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 17,
+          "function_name": "imitation_learning",
+          "code": "directly_from_video()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 25,
+          "function_name": "directly_from_video",
+          "code": "image(\"images/Robotic_Telekinesis.png\", width=800)"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "image",
+          "data": "images/Robotic_Telekinesis.png",
+          "style": {
+            "width": 800
+          },
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "imitation_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 17,
+          "function_name": "imitation_learning",
+          "code": "directly_from_video()"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "imitation_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 18,
+          "function_name": "imitation_learning",
+          "code": "data_synthesis()"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "imitation_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 18,
+          "function_name": "imitation_learning",
+          "code": "data_synthesis()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 27,
+          "function_name": "data_synthesis",
+          "code": "def data_synthesis():"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "imitation_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 18,
+          "function_name": "imitation_learning",
+          "code": "data_synthesis()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 28,
+          "function_name": "data_synthesis",
+          "code": "text(\"- retarget\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "- retarget",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "imitation_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 18,
+          "function_name": "imitation_learning",
+          "code": "data_synthesis()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 29,
+          "function_name": "data_synthesis",
+          "code": "text(\"- D(R,O) Grasp\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "- D(R,O) Grasp",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "imitation_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 18,
+          "function_name": "imitation_learning",
+          "code": "data_synthesis()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 30,
+          "function_name": "data_synthesis",
+          "code": "text(\"- DexGarmentLab\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "- DexGarmentLab",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "imitation_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 18,
+          "function_name": "imitation_learning",
+          "code": "data_synthesis()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 31,
+          "function_name": "data_synthesis",
+          "code": "text(\"- DemoGrasp\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "- DemoGrasp",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "imitation_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 18,
+          "function_name": "imitation_learning",
+          "code": "data_synthesis()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 32,
+          "function_name": "data_synthesis",
+          "code": "image(\"images/demo_grasp.png\", width=800)"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "image",
+          "data": "images/demo_grasp.png",
+          "style": {
+            "width": 800
+          },
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "imitation_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 18,
+          "function_name": "imitation_learning",
+          "code": "data_synthesis()"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "imitation_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 19,
+          "function_name": "imitation_learning",
+          "code": "teleoperate()"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "imitation_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 19,
+          "function_name": "imitation_learning",
+          "code": "teleoperate()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 34,
+          "function_name": "teleoperate",
+          "code": "def teleoperate():"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "imitation_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 19,
+          "function_name": "imitation_learning",
+          "code": "teleoperate()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 35,
+          "function_name": "teleoperate",
+          "code": "text(\"- 【2024】Tilde。遥操作数据+Diffusion Policy\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "- 【2024】Tilde。遥操作数据+Diffusion Policy",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "imitation_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 19,
+          "function_name": "imitation_learning",
+          "code": "teleoperate()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 36,
+          "function_name": "teleoperate",
+          "code": "image(\"images/tilde.png\", width=800)"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "image",
+          "data": "images/tilde.png",
+          "style": {
+            "width": 800
+          },
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "imitation_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 19,
+          "function_name": "imitation_learning",
+          "code": "teleoperate()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 37,
+          "function_name": "teleoperate",
+          "code": "text(\"- 【2024】3D Diffusion Policy\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "- 【2024】3D Diffusion Policy",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "imitation_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 19,
+          "function_name": "imitation_learning",
+          "code": "teleoperate()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 38,
+          "function_name": "teleoperate",
+          "code": "image(\"images/3D_Diffusion_Policy.png\", width=800)"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "image",
+          "data": "images/3D_Diffusion_Policy.png",
+          "style": {
+            "width": 800
+          },
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "imitation_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 19,
+          "function_name": "imitation_learning",
+          "code": "teleoperate()"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "imitation_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 20,
+          "function_name": "imitation_learning",
+          "code": "across_domain_foundation_model()"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "imitation_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 20,
+          "function_name": "imitation_learning",
+          "code": "across_domain_foundation_model()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 40,
+          "function_name": "across_domain_foundation_model",
+          "code": "def across_domain_foundation_model():"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "imitation_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 20,
+          "function_name": "imitation_learning",
+          "code": "across_domain_foundation_model()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 41,
+          "function_name": "across_domain_foundation_model",
+          "code": "text(\"NVIDIA GR00T N1、Video Prediction Policy（星动纪元）、π0.5、wall-x（自变量）、Gen0（Generalist AI）\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "NVIDIA GR00T N1、Video Prediction Policy（星动纪元）、π0.5、wall-x（自变量）、Gen0（Generalist AI）",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "imitation_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 20,
+          "function_name": "imitation_learning",
+          "code": "across_domain_foundation_model()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 42,
+          "function_name": "across_domain_foundation_model",
+          "code": "text(\"- BeingH0\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "- BeingH0",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "imitation_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 20,
+          "function_name": "imitation_learning",
+          "code": "across_domain_foundation_model()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 43,
+          "function_name": "across_domain_foundation_model",
+          "code": "image(\"images/being-h0.png\", width=800)"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "image",
+          "data": "images/being-h0.png",
+          "style": {
+            "width": 800
+          },
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "imitation_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 20,
+          "function_name": "imitation_learning",
+          "code": "across_domain_foundation_model()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 44,
+          "function_name": "across_domain_foundation_model",
+          "code": "image(\"images/tokenizer.png\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "image",
+          "data": "images/tokenizer.png",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "imitation_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 20,
+          "function_name": "imitation_learning",
+          "code": "across_domain_foundation_model()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 45,
+          "function_name": "across_domain_foundation_model",
+          "code": "text(\"- DexGraspVLA (cite: 102)\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "- DexGraspVLA (cite: 102)",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "imitation_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 20,
+          "function_name": "imitation_learning",
+          "code": "across_domain_foundation_model()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 46,
+          "function_name": "across_domain_foundation_model",
+          "code": "image(\"images/DexGraspVLA.png\", width=800)"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "image",
+          "data": "images/DexGraspVLA.png",
+          "style": {
+            "width": 800
+          },
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "imitation_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 20,
+          "function_name": "imitation_learning",
+          "code": "across_domain_foundation_model()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 47,
+          "function_name": "across_domain_foundation_model",
+          "code": "text(\"- UniDex (cite: 4)\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "- UniDex (cite: 4)",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "imitation_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 20,
+          "function_name": "imitation_learning",
+          "code": "across_domain_foundation_model()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 48,
+          "function_name": "across_domain_foundation_model",
+          "code": "image(\"images/UniDex.png\", width=800)"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "image",
+          "data": "images/UniDex.png",
+          "style": {
+            "width": 800
+          },
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "imitation_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 20,
+          "function_name": "imitation_learning",
+          "code": "across_domain_foundation_model()"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "imitation_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 21,
+          "function_name": "imitation_learning",
+          "code": "post_rl()"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "imitation_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 21,
+          "function_name": "imitation_learning",
+          "code": "post_rl()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 50,
+          "function_name": "post_rl",
+          "code": "def post_rl():"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "imitation_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 21,
+          "function_name": "imitation_learning",
+          "code": "post_rl()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 51,
+          "function_name": "post_rl",
+          "code": "text(\"- DEXNDM\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "- DEXNDM",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "imitation_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 21,
+          "function_name": "imitation_learning",
+          "code": "post_rl()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 52,
+          "function_name": "post_rl",
+          "code": "image(\"images/post_rl.png\", width=800)"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "image",
+          "data": "images/post_rl.png",
+          "style": {
+            "width": 800
+          },
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "imitation_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 21,
+          "function_name": "imitation_learning",
+          "code": "post_rl()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 53,
+          "function_name": "post_rl",
+          "code": "text(\"- DAgger、RECAP\")"
+        }
+      ],
+      "env": {},
+      "renderings": [
+        {
+          "type": "markdown",
+          "data": "- DAgger、RECAP",
+          "style": {},
+          "external_link": null,
+          "internal_link": null
+        }
+      ],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "imitation_learning()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 21,
+          "function_name": "imitation_learning",
+          "code": "post_rl()"
+        }
+      ],
+      "env": {},
+      "renderings": [],
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "stack": [
+        {
+          "path": "presentation.py",
+          "line_number": 9,
+          "function_name": "main",
+          "code": "algorithms.present()"
+        },
+        {
+          "path": "sections/algorithms.py",
+          "line_number": 7,
+          "function_name": "present",
+          "code": "imitation_learning()"
+        }
+      ],
+      "env": {},
+      "renderings": [],
       "stdout": "",
       "stderr": ""
     },
@@ -991,7 +5499,7 @@
         },
         {
           "path": "presentation.py",
-          "line_number": 23,
+          "line_number": 26,
           "function_name": "closing",
           "code": "def closing():"
         }
@@ -1011,101 +5519,19 @@
         },
         {
           "path": "presentation.py",
-          "line_number": 24,
-          "function_name": "closing",
-          "code": "text(\"## 后续填充顺序\")"
-        }
-      ],
-      "env": {},
-      "renderings": [
-        {
-          "type": "markdown",
-          "data": "## 后续填充顺序",
-          "style": {},
-          "external_link": null,
-          "internal_link": null
-        }
-      ],
-      "stdout": "",
-      "stderr": ""
-    },
-    {
-      "stack": [
-        {
-          "path": "presentation.py",
-          "line_number": 10,
-          "function_name": "main",
-          "code": "closing()"
-        },
-        {
-          "path": "presentation.py",
-          "line_number": 25,
-          "function_name": "closing",
-          "code": "text(\"1. 先补每部分的问题清单和代表案例。\")"
-        }
-      ],
-      "env": {},
-      "renderings": [
-        {
-          "type": "markdown",
-          "data": "1. 先补每部分的问题清单和代表案例。",
-          "style": {},
-          "external_link": null,
-          "internal_link": null
-        }
-      ],
-      "stdout": "",
-      "stderr": ""
-    },
-    {
-      "stack": [
-        {
-          "path": "presentation.py",
-          "line_number": 10,
-          "function_name": "main",
-          "code": "closing()"
-        },
-        {
-          "path": "presentation.py",
-          "line_number": 26,
-          "function_name": "closing",
-          "code": "text(\"2. 再补图片、论文、公司产品页和数据表。\")"
-        }
-      ],
-      "env": {},
-      "renderings": [
-        {
-          "type": "markdown",
-          "data": "2. 再补图片、论文、公司产品页和数据表。",
-          "style": {},
-          "external_link": null,
-          "internal_link": null
-        }
-      ],
-      "stdout": "",
-      "stderr": ""
-    },
-    {
-      "stack": [
-        {
-          "path": "presentation.py",
-          "line_number": 10,
-          "function_name": "main",
-          "code": "closing()"
-        },
-        {
-          "path": "presentation.py",
           "line_number": 27,
           "function_name": "closing",
-          "code": "text(\"3. 最后收敛成适合分享的叙事顺序。\")"
+          "code": "image(\"images/close.png\", width=800)"
         }
       ],
       "env": {},
       "renderings": [
         {
-          "type": "markdown",
-          "data": "3. 最后收敛成适合分享的叙事顺序。",
-          "style": {},
+          "type": "image",
+          "data": "images/close.png",
+          "style": {
+            "width": 800
+          },
           "external_link": null,
           "internal_link": null
         }
